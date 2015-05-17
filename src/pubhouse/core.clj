@@ -11,8 +11,6 @@
 
 (def ^:dynamic *meta-sep*  "===")
 
-(def ^:dynamic *block-sep* "$$$")
-
 (defn relative-path
   [path]
   (->> (fs/split path)
@@ -36,9 +34,9 @@
   {:path (relative-path (.getPath file))
    :mod-time (fs/mod-time file)})
 
-(defn meta-section
+(defn get-page-info
   [lines]
-  (->> lines (take-while #(not= % *meta-sep*))))
+  (->> lines (take-while #(not= % *meta-sep*)) (join "\n") (read-string)))
 
 (defn content-section
   [lines]
@@ -51,10 +49,7 @@
             (doall
              (for [file (->> (fs/file ".") (file-seq) (filter content-file?))]
                (with-open [reader (clojure.java.io/reader file)]
-                 [(get-file-info file)
-                  (->> (meta-section (line-seq reader))
-                       (join "\n")
-                       (read-string))]))))))
+                 [(get-file-info file) (get-page-info (line-seq reader))]))))))
 
 (defn strip-extension
   [s]
