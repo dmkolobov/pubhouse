@@ -16,106 +16,82 @@
 
 (def content-file? (complement fs/directory?))
 
-(defn mk-page-record
-  [file lines]
-  (merge (->> lines (take-while #(not= % *meta-sep*)) (join " ") (read-string))
-         {:path (rel-path (.getPath file))
-          :mod-time (fs/mod-time file)}))
+(defn get-file-info
+  [file]
+  {:path (rel-path (.getPath file))
+   :mod-time (fs/mod-time file)})
+
+(defn meta-section
+  [lines]
+  (->> lines (take-while #(not= % *meta-sep*))))
 
 (defn content-section
   [lines]
   (->> lines (drop-while #(not= % *meta-sep*)) (drop 1)))
 
-(defn page-record? [x] (and (coll? x) (contains? x :mod-time)))
-
-(defn read-content-file!
-  [file lines]
-  [(mk-page-record file lines)
-   (content-section lines)])
-
-(defn read-content-directory!
-  [root-dir]
-  (map-directory! read-content-file! content-file? root-dir))
-
-(defn add-page
-  [site-map page-record]
-  (assoc-in site-map
-            (map keyword (fs/split (:path page-record)))
-            page-record))
-
 (defn build-site-map!
-  [content-root]
-  (fs/with-cwd content-root
-    (reset! *site-map*
-            (reduce #(add-page %1 (first %2))
-                    {}
-                    (read-content-directory! ".")))))
+  []
+  (reset! *site-map*
+          (fs/with-cwd "content"
+            (doall
+             (for [file (->> (fs/file ".") (file-seq) (filter content-file?))]
+               (with-open [reader (clojure.java.io/reader file)]
+                 [(get-file-info file)
+                  (->> (meta-section (line-seq reader))
+                       (join "\n")
+                       (read-string))]))))))
 
 (defn strip-extension
   [s]
   (if-let [e (fs/extension s)] (clojure.string/replace s e "") s))
 
-(defn strip-file-info
-  [page-record]
-  (dissoc page-record :path :mod-time))
+(defn make-page
+  [file-info page-info]
+  (merge page-info
+         {:url (strip-extension (:path file-info))}))
 
-(defn humane-site-map
-  [site-map]
-  (clojure.walk/postwalk (fn [form]
-                           (cond (page-record? form)
-                                 (strip-file-info form)
-                                 
-                                 (keyword? form)
-                                 (-> form name strip-extension keyword)
-
-                                 :default form))
-                         site-map))
-
-(defmulti render-file
-  (comp fs/extension :path))
+(defmulti render-file (fn [ext _ _] ext))
 
 (defmethod render-file ".md"
-  [page-record content-lines]
+  [_ page-record content-lines]
   (hiccup/html
    [:html
     [:head [:title (:title page-record)]]
-    [:body (md-to-html-string (join "\n" content-lines))]]))
+    [:body
+     (md-to-html-string (join "\n" content-lines))
+     [:div (:url page-record)]
+     [:div (get-in site [:current-page :url])]]]))
 
-(defn build-path
-  [root path]
-  (clojure.java.io/as-file
-   (str (join "/" (cons root (drop 2 (fs/split (strip-extension path)))))
-        ".html")))
+(defn pages->site
+  [pages]
+  (reduce #(assoc-in %1 (fs/split (:url %2)) %2) {} pages))
 
-(defn content-path
-  [root-path]
-  (join "/" (concat (fs/split root-path) (list "content"))))
-
-(defn navigate-site-map
-  [site-map page-record]
-  (assoc (humane-site-map site-map)
-         :current-page
-         (strip-file-info page-record)))
-
-(defn compile-file!
-  [site-map build-root [page-record lines]]
-  (let [output (build-path build-root (:path page-record))]
-    (with-parent-dir output
-      (fn []
-        (with-open [writer (clojure.java.io/writer output)]
-          (binding [site (navigate-site-map site-map page-record)]
-            (.write writer (render-file page-record lines))))))))
+(defn with-file-ends
+  [input output f]
+  (with-parent-dir output
+    (fn []
+      (with-open [reader (clojure.java.io/reader input)
+                  writer (clojure.java.io/writer output)]
+        (f reader writer)))))
 
 (defn compile-content!
-  [site-map content-root build-root]
-  (do-directory! (comp (partial compile-file! site-map build-root)
-                       read-content-file!)
-                 content-file?
-                 content-root))
+  [site-map build-path]
+  (let [site (pages->site (map (partial apply make-page) site-map))]
+    (doseq [[file-info page-info] site-map]
+      (let [page (make-page file-info page-info)
+            input (fs/with-cwd "content" (fs/file (:path file-info)))
+            output (fs/with-cwd build-path (fs/file (str (:url page) ".html")))]
+        (with-file-ends input output
+          (fn [reader writer]
+            (binding [site (assoc site :current-page page)]
+              (.write writer
+                      (render-file (fs/extension (:path file-info))
+                                   page
+                                   (content-section (line-seq reader)))))))))))
 
 (defn compile-site!
   [root-path build-root]
-  (binding [*site-map* (atom {})]
+  (binding [*site-map* (atom {})]  
     (let [content-root (content-path root-path)]
-      (build-site-map! content-root)
-      (compile-content! @*site-map* content-root build-root))))
+      (build-site-map!)
+      (compile-content! @*site-map* build-root))))
