@@ -115,22 +115,24 @@
     [:head [:title (:title file-record)]]
     [:body (md-to-html-string (join "\n" content-lines))]]))
 
-(defn ensure-parent-dirs!
-  [file]
-  (let [parent (fs/parent file)]
-    (when (not (fs/exists? parent))
-      (fs/mkdirs parent))))
+(defn with-parent-dir
+  [path f]
+  (let [parent (fs/parent path)]
+    (if (fs/exists? parent)
+      (f)
+      (do (fs/mkdirs parent) (f)))))
 
 (defn emit-file!
   [input-file output-file]
-  (ensure-parent-dirs! output-file)
-  (with-open [reader (clojure.java.io/reader input-file)
-              writer (clojure.java.io/writer output-file)]
-    (let [[file-record content-lines] (build-file! input-file (line-seq reader))]
-      (binding [site (assoc (humane-site-map)
-                            :current-page
-                            (strip-file-info file-record))]
-        (.write writer (render-file file-record content-lines))))))
+  (with-parent-dir output-file
+    (fn []
+      (with-open [reader (clojure.java.io/reader input-file)
+                  writer (clojure.java.io/writer output-file)]
+        (let [[file-record content-lines] (build-file! input-file (line-seq reader))]
+          (binding [site (assoc (humane-site-map)
+                                :current-page
+                                (strip-file-info file-record))]
+            (.write writer (render-file file-record content-lines))))))))
 
 (defn mk-output
   [root path]
