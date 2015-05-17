@@ -12,12 +12,21 @@
       (do (fs/mkdirs parent) (f)))))
 
 (defn map-directory!
-  "For all files from (file-seq path) for which pred returns true,
-  apply the function f with the file as the first argument, and line-seq
-  of its contents as the second argument."
+  "Filter (file-seq path) by the function pred and apply the function f with
+  the file as the first argument, and a line-seq of the file's contents as its
+  second argument."
   [f pred path]
   (doall
    (let [root (clojure.java.io/as-file path)]
      (for [file (->> root (file-seq) (filter pred))]
        (with-open [reader (clojure.java.io/reader file)]
          (f file (line-seq reader)))))))
+
+(defn do-directory!
+  "Similar to map-directory, except the files from the sequence are
+  consumed via a doseq iteration."
+  [f pred path]
+  (let [root (clojure.java.io/as-file path)]
+    (doseq [file (->> root (file-seq) (filter pred))]
+      (with-open [reader (clojure.java.io/reader file)]
+        (f file (line-seq reader))))))

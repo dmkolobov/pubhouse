@@ -1,5 +1,5 @@
 (ns pubhouse.core
-  (:require [pubhouse.files :refer [with-parent-dir map-directory!]]
+  (:require [pubhouse.files :refer [with-parent-dir map-directory! do-directory!]]
             [clojure.java.io :refer [as-file]]
             [clojure.string :refer [join]]
             [markdown.core :refer [md-to-html-string]]
@@ -107,29 +107,29 @@
     [:head [:title (:title file-record)]]
     [:body (md-to-html-string (join "\n" content-lines))]]))
 
-(defn emit-file!
-  [input-file output-file]
-  (with-parent-dir output-file
-    (fn []
-      (with-open [reader (clojure.java.io/reader input-file)
-                  writer (clojure.java.io/writer output-file)]
-        (let [[file-record content-lines] (build-file! input-file (line-seq reader))]
-          (binding [site (assoc (humane-site-map)
-                                :current-page
-                                (strip-file-info file-record))]
-            (.write writer (render-file file-record content-lines))))))))
-
 (defn mk-output
   [root path]
   (clojure.java.io/as-file
    (str (join "/" (cons root (drop 2 (fs/split (strip-extension path)))))
         ".html")))
 
+(defn compile-file!
+  [build-path [file-record lines]]
+  (let [output (mk-output build-path (:path file-record))]
+    (with-parent-dir output
+      (fn []
+        (with-open [writer (clojure.java.io/writer output)]
+          (binding [site (assoc (humane-site-map)
+                                :current-page
+                                (strip-file-info file-record))]
+            (.write writer (render-file file-record lines))))))))
+
 (defn compile-content!
-  [content-root build-root]
-  (doseq [file (->> content-root (file-seq) (filter (complement fs/directory?)))]
-    (let [output (mk-output build-root (.getPath file))]
-      (emit-file! file output))))
+  [content-root build-path]
+  (do-directory! (comp (partial compile-file! build-path)
+                       build-file!)
+                 (complement fs/directory?)
+                 content-root))
 
 (defn compile-site!
   [root-dir build-root]
