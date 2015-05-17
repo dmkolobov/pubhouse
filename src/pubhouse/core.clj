@@ -1,5 +1,5 @@
 (ns pubhouse.core
-  (:require [pubhouse.files :refer [with-parent-dir map-directory! do-directory!]]
+  (:require [pubhouse.files :refer [rel-path with-parent-dir map-directory! do-directory!]]
             [clojure.java.io :refer [as-file]]
             [clojure.string :refer [join]]
             [markdown.core :refer [md-to-html-string]]
@@ -19,7 +19,8 @@
 (defn mk-page-record
   [file lines]
   (merge (->> lines (take-while #(not= % *meta-sep*)) (join " ") (read-string))
-         {:path (.getPath file) :mod-time (fs/mod-time file)}))
+         {:path (rel-path (.getPath file))
+          :mod-time (fs/mod-time file)}))
 
 (defn content-section
   [lines]
@@ -43,13 +44,12 @@
             page-record))
 
 (defn build-site-map!
-  [root-dir]
-  (reset! *site-map*
-          (let [root-part (first (fs/split root-dir))]
-            (get (reduce #(add-page %1 (first %2))
-                         {}
-                         (read-content-directory! root-dir))
-                 (keyword root-part)))))
+  [content-root]
+  (fs/with-cwd content-root
+    (reset! *site-map*
+            (reduce #(add-page %1 (first %2))
+                    {}
+                    (read-content-directory! ".")))))
 
 (defn strip-extension
   [s]

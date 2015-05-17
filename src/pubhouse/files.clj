@@ -1,6 +1,12 @@
 (ns pubhouse.files
   (:require [me.raynes.fs :as fs]))
 
+(defn rel-path
+  [path]
+  (->> (fs/split path)
+       (drop (count (fs/split fs/*cwd*)))
+       (clojure.string/join "/")))
+
 (defn with-parent-dir
   "Ensure that the parent directory struture of the path
   exists before invoking the function f. Most likely, f
@@ -17,7 +23,7 @@
   second argument."
   [f pred path]
   (doall
-   (let [root (clojure.java.io/as-file path)]
+   (let [root (fs/file path)]
      (for [file (->> root (file-seq) (filter pred))]
        (with-open [reader (clojure.java.io/reader file)]
          (f file (line-seq reader)))))))
@@ -26,7 +32,7 @@
   "Similar to map-directory, except the files from the sequence are
   consumed via a doseq iteration."
   [f pred path]
-  (let [root (clojure.java.io/as-file path)]
+  (let [root (fs/file path)]
     (doseq [file (->> root (file-seq) (filter pred))]
       (with-open [reader (clojure.java.io/reader file)]
         (f file (line-seq reader))))))
