@@ -1,5 +1,6 @@
 (ns pubhouse.core
-  (:require [clojure.java.io :refer [as-file]]
+  (:require [pubhouse.files :refer [with-parent-dir map-directory!]]
+            [clojure.java.io :refer [as-file]]
             [clojure.string :refer [join]]
             [markdown.core :refer [md-to-html-string]]
             [hiccup.core :as hiccup]
@@ -43,18 +44,9 @@
   [(mk-file-record file lines)
    (content-section lines)])
 
-(defn load-files!
-  [root-dir]
-  (->> (clojure.java.io/as-file root-dir)
-       (file-seq)
-       (filter (complement fs/directory?))))
-
 (defn build-files!
   [root-dir]
-  (doall
-   (for [file (load-files! root-dir)]
-     (with-open [reader (clojure.java.io/reader file)]
-       (build-file! file (line-seq reader))))))
+  (map-directory! build-file! (complement fs/directory?) root-dir))
 
 ;; A site is our primary way of keeping track of content files as they
 ;; change.
@@ -114,13 +106,6 @@
    [:html
     [:head [:title (:title file-record)]]
     [:body (md-to-html-string (join "\n" content-lines))]]))
-
-(defn with-parent-dir
-  [path f]
-  (let [parent (fs/parent path)]
-    (if (fs/exists? parent)
-      (f)
-      (do (fs/mkdirs parent) (f)))))
 
 (defn emit-file!
   [input-file output-file]
