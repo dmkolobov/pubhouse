@@ -16,16 +16,14 @@
 
 (def ^:dynamic *meta-sep*
   "The separator that splits each content file into meta and content sections."
-  
   "===")
 
 (def ^:dynamic *block-sep*
   "Separator used in content files to denote line-oriented preprocessing
   blocks."
-  
   "$$$")
 
-(defn mk-file-record
+(defn mk-page-record
   [file lines]
   (merge (->> lines (take-while #(not= % *meta-sep*)) (join " ") (read-string))
          {:path (.getPath file) :mod-time (fs/mod-time file)}))
@@ -34,14 +32,13 @@
   [lines]
   (->> lines (drop-while #(not= % *meta-sep*)) (drop 1)))
 
-(defn file-record? [x] (and (coll? x) (contains? x :mod-time)))
+(defn page-record? [x] (and (coll? x) (contains? x :mod-time)))
 
 (defn build-file!
   "Merge the hash from the meta-information lines of `file` with useful
   file-system information, such as the path and url relative to the root."
-  
   [file lines]
-  [(mk-file-record file lines)
+  [(mk-page-record file lines)
    (content-section lines)])
 
 (defn build-files!
@@ -52,15 +49,14 @@
 ;; change.
 
 (defn conj-site-map
-  [site-map file-record]
+  [site-map page-record]
   (assoc-in site-map
-            (map keyword (fs/split (:path file-record)))
-            file-record))
+            (map keyword (fs/split (:path page-record)))
+            page-record))
 
 (defn build-site-map!
   "Creates a nested persistent map where the keys are filenames and directory
   names, and entries are maps of the same type, or file records."
-  
   [root-dir]
   (reset! *site-map*
           (let [root-part (first (fs/split root-dir))]
@@ -74,37 +70,32 @@
   (if-let [e (fs/extension s)] (clojure.string/replace s e "") s))
 
 (defn strip-file-info
-  [file-record]
-  (dissoc file-record :path :mod-time))
+  [page-record]
+  (dissoc page-record :path :mod-time))
 
-(defn get-site-map
-  []
-  (deref *site-map*))
-  
 (defn humane-site-map
-  []
+  [site-map]
   (clojure.walk/postwalk (fn [form]
-                           (cond (file-record? form)
+                           (cond (page-record? form)
                                  (strip-file-info form)
                                  
                                  (keyword? form)
                                  (-> form name strip-extension keyword)
 
                                  :default form))
-                         (get-site-map)))
+                         site-map))
 
 (defmulti render-file
   "Takes as its first argument a map of the type returned by `build-file!`,
   and as its second argument a lazy sequence of the lines of the corresponding
   file. Should return a string which will be written to the output file."
-
   (comp fs/extension :path))
 
 (defmethod render-file ".md"
-  [file-record content-lines]
+  [page-record content-lines]
   (hiccup/html
    [:html
-    [:head [:title (:title file-record)]]
+    [:head [:title (:title page-record)]]
     [:body (md-to-html-string (join "\n" content-lines))]]))
 
 (defn mk-output
@@ -113,20 +104,24 @@
    (str (join "/" (cons root (drop 2 (fs/split (strip-extension path)))))
         ".html")))
 
+(defn navigate-site-map
+  [site-map page-record]
+  (assoc (humane-site-map site-map)
+         :current-page
+         (strip-file-info page-record)))
+
 (defn compile-file!
-  [build-path [file-record lines]]
-  (let [output (mk-output build-path (:path file-record))]
+  [site-map build-path [page-record lines]]
+  (let [output (mk-output build-path (:path page-record))]
     (with-parent-dir output
       (fn []
         (with-open [writer (clojure.java.io/writer output)]
-          (binding [site (assoc (humane-site-map)
-                                :current-page
-                                (strip-file-info file-record))]
-            (.write writer (render-file file-record lines))))))))
+          (binding [site (navigate-site-map site-map page-record)]
+            (.write writer (render-file page-record lines))))))))
 
 (defn compile-content!
-  [content-root build-path]
-  (do-directory! (comp (partial compile-file! build-path)
+  [site-map content-root build-path]
+  (do-directory! (comp (partial compile-file! site-map build-path)
                        build-file!)
                  (complement fs/directory?)
                  content-root))
@@ -138,4 +133,4 @@
                         (join "/" (concat (fs/split root-dir)
                                           (list "content"))))]
       (build-site-map! content-root)
-      (compile-content! content-root build-root))))
+      (compile-content! @*site-map* content-root build-root))))
