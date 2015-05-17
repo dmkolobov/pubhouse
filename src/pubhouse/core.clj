@@ -87,6 +87,10 @@
    (str (join "/" (cons root (drop 2 (fs/split (strip-extension path)))))
         ".html")))
 
+(defn content-path
+  [root-path]
+  (join "/" (concat (fs/split root-path) (list "content"))))
+
 (defn navigate-site-map
   [site-map page-record]
   (assoc (humane-site-map site-map)
@@ -110,10 +114,8 @@
                  content-root))
 
 (defn compile-site!
-  [root-dir build-root]
+  [root-path build-root]
   (binding [*site-map* (atom {})]
-    (let [content-root (clojure.java.io/as-file
-                        (join "/" (concat (fs/split root-dir)
-                                          (list "content"))))]
+    (let [content-root (content-path root-path)]
       (build-site-map! content-root)
       (compile-content! @*site-map* content-root build-root))))
