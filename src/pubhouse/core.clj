@@ -23,6 +23,8 @@
   blocks."
   "$$$")
 
+(def content-file? (complement fs/directory?))
+
 (defn mk-page-record
   [file lines]
   (merge (->> lines (take-while #(not= % *meta-sep*)) (join " ") (read-string))
@@ -43,7 +45,7 @@
 
 (defn build-files!
   [root-dir]
-  (map-directory! build-file! (complement fs/directory?) root-dir))
+  (map-directory! build-file! content-file? root-dir))
 
 ;; A site is our primary way of keeping track of content files as they
 ;; change.
@@ -111,8 +113,8 @@
          (strip-file-info page-record)))
 
 (defn compile-file!
-  [site-map build-path [page-record lines]]
-  (let [output (mk-output build-path (:path page-record))]
+  [site-map build-root [page-record lines]]
+  (let [output (mk-output build-root (:path page-record))]
     (with-parent-dir output
       (fn []
         (with-open [writer (clojure.java.io/writer output)]
@@ -120,10 +122,10 @@
             (.write writer (render-file page-record lines))))))))
 
 (defn compile-content!
-  [site-map content-root build-path]
-  (do-directory! (comp (partial compile-file! site-map build-path)
+  [site-map content-root build-root]
+  (do-directory! (comp (partial compile-file! site-map build-root)
                        build-file!)
-                 (complement fs/directory?)
+                 content-file?
                  content-root))
 
 (defn compile-site!
