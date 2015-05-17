@@ -27,14 +27,14 @@
 
 (defn page-record? [x] (and (coll? x) (contains? x :mod-time)))
 
-(defn build-file!
+(defn read-content-file!
   [file lines]
   [(mk-page-record file lines)
    (content-section lines)])
 
-(defn build-files!
+(defn read-content-directory!
   [root-dir]
-  (map-directory! build-file! content-file? root-dir))
+  (map-directory! read-content-file! content-file? root-dir))
 
 (defn add-page
   [site-map page-record]
@@ -48,7 +48,7 @@
           (let [root-part (first (fs/split root-dir))]
             (get (reduce #(add-page %1 (first %2))
                          {}
-                         (build-files! root-dir))
+                         (read-content-directory! root-dir))
                  (keyword root-part)))))
 
 (defn strip-extension
@@ -105,7 +105,7 @@
 (defn compile-content!
   [site-map content-root build-root]
   (do-directory! (comp (partial compile-file! site-map build-root)
-                       build-file!)
+                       read-content-file!)
                  content-file?
                  content-root))
 
