@@ -1,6 +1,5 @@
 (ns pubhouse.core
-  (:require [pubhouse.files :refer [rel-path with-parent-dir map-directory! do-directory!]]
-            [clojure.java.io :refer [as-file]]
+  (:require [clojure.java.io :refer [as-file]]
             [clojure.string :refer [join]]
             [markdown.core :refer [md-to-html-string]]
             [hiccup.core :as hiccup]
@@ -14,11 +13,27 @@
 
 (def ^:dynamic *block-sep* "$$$")
 
+(defn relative-path
+  [path]
+  (->> (fs/split path)
+       (drop (count (fs/split fs/*cwd*)))
+       (clojure.string/join "/")))
+
+(defn with-parent-dir
+  "Ensure that the parent directory struture of the path
+  exists before invoking the function f. Most likely, f
+  will write to the file at path."
+  [path f]
+  (let [parent (fs/parent path)]
+    (if (fs/exists? parent)
+      (f)
+      (do (fs/mkdirs parent) (f)))))
+
 (def content-file? (complement fs/directory?))
 
 (defn get-file-info
   [file]
-  {:path (rel-path (.getPath file))
+  {:path (relative-path (.getPath file))
    :mod-time (fs/mod-time file)})
 
 (defn meta-section
@@ -75,11 +90,12 @@
         (f reader writer)))))
 
 (defn compile-content!
-  [site-map build-path]
+  [root-path site-map build-path]
   (let [site (pages->site (map (partial apply make-page) site-map))]
     (doseq [[file-info page-info] site-map]
       (let [page (make-page file-info page-info)
-            input (fs/with-cwd "content" (fs/file (:path file-info)))
+            input (fs/with-cwd (str (fs/normalized root-path) "/content")
+                    (fs/file (:path file-info)))
             output (fs/with-cwd build-path (fs/file (str (:url page) ".html")))]
         (with-file-ends input output
           (fn [reader writer]
@@ -91,7 +107,6 @@
 
 (defn compile-site!
   [root-path build-root]
-  (binding [*site-map* (atom {})]  
-    (let [content-root (content-path root-path)]
-      (build-site-map!)
-      (compile-content! @*site-map* build-root))))
+  (binding [*site-map* (atom {})]
+    (fs/with-cwd root-path (build-site-map!))
+    (compile-content! root-path @*site-map* build-root)))
