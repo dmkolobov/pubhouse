@@ -12,22 +12,26 @@
 (def ^:dynamic *meta-sep*  "===")
 
 (defn relative-path
+  "Takes a path as the sole argument and returns path with any parts
+  matching the current *cwd* removed. Requires path to be a child of 
+  *cwd*."
   [path]
   (->> (fs/split path)
        (drop (count (fs/split fs/*cwd*)))
        (clojure.string/join "/")))
 
-(defn with-parent-dir
-  "Ensure that the parent directory struture of the path
-  exists before invoking the function f. Most likely, f
-  will write to the file at path."
+(defn ensure-parent-dir
+  "Invoke the function f, ensuring that the parent directory of the file at path
+  exists. Presumabely, f has side-effects involving writing to the file at path."
   [path f]
   (let [parent (fs/parent path)]
     (if (fs/exists? parent)
       (f)
       (do (fs/mkdirs parent) (f)))))
 
-(def content-file? (complement fs/directory?))
+(def content-file?
+  "Any files for which this predicate returns true will be compiled."
+  (complement fs/directory?))
 
 (defn get-file-info
   [file]
@@ -35,10 +39,12 @@
    :mod-time (fs/mod-time file)})
 
 (defn get-page-info
+  "Reads the lines preceding the *meta-sep* line as a persistent map."
   [lines]
   (->> lines (take-while #(not= % *meta-sep*)) (join "\n") (read-string)))
 
 (defn content-section
+  "Returns a lazy sequence of lines following the *meta-sep* line."
   [lines]
   (->> lines (drop-while #(not= % *meta-sep*)) (drop 1)))
 
@@ -77,8 +83,11 @@
   (reduce #(assoc-in %1 (fs/split (:url %2)) %2) {} pages))
 
 (defn with-file-ends
+  "Creates a reader and writer using the input and output files, and invokes the 
+  f with the arguments (reader writer). Ensures that the parent directory of the output
+  file exists."
   [input output f]
-  (with-parent-dir output
+  (ensure-parent-dir output
     (fn []
       (with-open [reader (clojure.java.io/reader input)
                   writer (clojure.java.io/writer output)]
