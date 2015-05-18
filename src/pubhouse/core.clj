@@ -66,23 +66,11 @@
   (merge page-info
          {:url (strip-extension (:path file-info))}))
 
-(defmulti render-file (fn [ext _ _] ext))
-
-(defmethod render-file ".md"
-  [_ page-record content-lines]
-  (hiccup/html
-   [:html
-    [:head [:title (:title page-record)]]
-    [:body
-     (md-to-html-string (join "\n" content-lines))
-     [:div (:url page-record)]
-     [:div (get-in site [:current-page :url])]]]))
-
 (defn pages->site
   [pages]
   (reduce #(assoc-in %1 (fs/split (:url %2)) %2) {} pages))
 
-(defn with-file-ends
+(defn with-io
   "Creates a reader and writer using the input and output files, and invokes the 
   f with the arguments (reader writer). Ensures that the parent directory of the output
   file exists."
@@ -106,23 +94,46 @@
   [build-path url]
   (fs/with-cwd build-path (fs/file (str url ".html"))))
 
+(defmulti render-file (fn [ext _ _] ext))
+
+(defmethod render-file ".md"
+  [_ page-record content-lines]
+  (hiccup/html
+   [:html
+    [:head [:title (:title page-record)]]
+    [:body
+     (md-to-html-string (join "\n" content-lines))
+     [:pre (with-out-str (clojure.pprint/pprint site))]
+     [:div (:url page-record)]
+     [:div (get-in site [:current-page :url])]]]))
+
+(defn compile-file!
+  [comp-state [file-info page-info]]
+  (let [{:keys [site-path build-path]} comp-state
+        page (make-page file-info page-info)
+        input (input-file site-path (:path file-info))
+        output (output-file build-path (:url page))]
+    (with-io input output
+      (fn [reader writer]
+        (binding [site (assoc site :current-page page)]
+          (.write writer (render-file (fs/extension (:path file-info))
+                                      page
+                                      (content-section (line-seq reader)))))))))
+
+(defn fresh-comp-state
+  [site-path build-path]
+  {:site-path site-path :build-path build-path})  
+
 (defn compile-content!
-  [site-path site-map build-path]
+  [comp-state site-map]
   (let [site (pages->site (map (partial apply make-page) site-map))]
-    (doseq [[file-info page-info] site-map]
-      (let [page (make-page file-info page-info)
-            input (input-file site-path (:path file-info))
-            output (output-file build-path (:url page))]
-        (with-file-ends input output
-          (fn [reader writer]
-            (binding [site (assoc site :current-page page)]
-              (.write writer
-                      (render-file (fs/extension (:path file-info))
-                                   page
-                                   (content-section (line-seq reader)))))))))))
+    (doseq [content-map site-map]
+      (binding [site site]
+        (compile-file! comp-state content-map)))))
 
 (defn compile-site!
   [site-path build-root]
   (binding [*site-map* (atom {})]
     (fs/with-cwd site-path (build-site-map!))
-    (compile-content! site-path @*site-map* build-root)))
+    (compile-content! (fresh-comp-state site-path build-root)
+                      @*site-map*)))
