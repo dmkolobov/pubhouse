@@ -6,9 +6,7 @@
             [me.raynes.fs :as fs]))
 
 (def ^:dynamic *site-map* nil)
-
-(def ^:dynamic site nil)
-
+(def ^:dynamic *render* nil)
 (def ^:dynamic *meta-sep*  "===")
 
 (defn relative-path
@@ -94,46 +92,29 @@
   [build-path url]
   (fs/with-cwd build-path (fs/file (str url ".html"))))
 
-(defmulti render-file (fn [ext _ _] ext))
-
-(defmethod render-file ".md"
-  [_ page-record content-lines]
-  (hiccup/html
-   [:html
-    [:head [:title (:title page-record)]]
-    [:body
-     (md-to-html-string (join "\n" content-lines))
-     [:pre (with-out-str (clojure.pprint/pprint site))]
-     [:div (:url page-record)]
-     [:div (get-in site [:current-page :url])]]]))
-
 (defn compile-file!
-  [comp-state [file-info page-info]]
+  [site comp-state [file-info page-info]]
   (let [{:keys [site-path build-path]} comp-state
         page (make-page file-info page-info)
         input (input-file site-path (:path file-info))
         output (output-file build-path (:url page))]
     (with-io input output
       (fn [reader writer]
-        (binding [site (assoc site :current-page page)]
-          (.write writer (render-file (fs/extension (:path file-info))
-                                      page
-                                      (content-section (line-seq reader)))))))))
-
-(defn fresh-comp-state
-  [site-path build-path]
-  {:site-path site-path :build-path build-path})  
+        (.write writer
+                (*render* (assoc site :current-page page)
+                          file-info
+                          page
+                          (content-section (line-seq reader))))))))
 
 (defn compile-content!
   [comp-state site-map]
   (let [site (pages->site (map (partial apply make-page) site-map))]
     (doseq [content-map site-map]
-      (binding [site site]
-        (compile-file! comp-state content-map)))))
+      (compile-file! site comp-state content-map))))
 
-(defn compile-site!
-  [site-path build-root]
-  (binding [*site-map* (atom {})]
-    (fs/with-cwd site-path (build-site-map!))
-    (compile-content! (fresh-comp-state site-path build-root)
-                      @*site-map*)))
+(defn build-site
+  [options render]
+  (binding [*site-map* (atom {})
+            *render* render]
+    (fs/with-cwd (:site-path options) (build-site-map!))
+    (compile-content! options @*site-map*)))
