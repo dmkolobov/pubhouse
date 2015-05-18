@@ -93,14 +93,26 @@
                   writer (clojure.java.io/writer output)]
         (f reader writer)))))
 
+(defn input-file
+  "Give a path to the root of the site directory and the relative path
+  of a resource source file, return that resource source file."
+  [site-root rel-path]
+  (fs/with-cwd (str (fs/normalized site-root) "/content")
+    (fs/file rel-path)))
+
+(defn output-file
+  "Given a path to the root of the build directory and the URL of
+  a resource, return thefile to be used for output of resource compilation."
+  [build-path url]
+  (fs/with-cwd build-path (fs/file (str url ".html"))))
+
 (defn compile-content!
-  [root-path site-map build-path]
+  [site-path site-map build-path]
   (let [site (pages->site (map (partial apply make-page) site-map))]
     (doseq [[file-info page-info] site-map]
       (let [page (make-page file-info page-info)
-            input (fs/with-cwd (str (fs/normalized root-path) "/content")
-                    (fs/file (:path file-info)))
-            output (fs/with-cwd build-path (fs/file (str (:url page) ".html")))]
+            input (input-file site-path (:path file-info))
+            output (output-file build-path (:url page))]
         (with-file-ends input output
           (fn [reader writer]
             (binding [site (assoc site :current-page page)]
@@ -110,7 +122,7 @@
                                    (content-section (line-seq reader)))))))))))
 
 (defn compile-site!
-  [root-path build-root]
+  [site-path build-root]
   (binding [*site-map* (atom {})]
-    (fs/with-cwd root-path (build-site-map!))
-    (compile-content! root-path @*site-map* build-root)))
+    (fs/with-cwd site-path (build-site-map!))
+    (compile-content! site-path @*site-map* build-root)))
