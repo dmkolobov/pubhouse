@@ -83,8 +83,9 @@
   "Give a path to the root of the site directory and the relative path
   of a resource source file, return that resource source file."
   [site-root rel-path]
-  (fs/with-cwd (str (fs/normalized site-root) "/content")
-    (fs/file rel-path)))
+  (fs/with-cwd site-root
+    (fs/with-cwd "content"
+      (fs/file rel-path))))
 
 (defn output-file
   "Given a path to the root of the build directory and the URL of
