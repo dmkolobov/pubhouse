@@ -91,11 +91,12 @@
   "Given a path to the root of the build directory and the URL of
   a resource, return thefile to be used for output of resource compilation."
   [build-path url]
-  (fs/with-cwd build-path (fs/file (str url ".html"))))
+  (fs/with-cwd build-path
+    (fs/file (str url ".html"))))
 
 (defn compile-file!
-  [site comp-state [file-info page-info]]
-  (let [{:keys [site-path build-path]} comp-state
+  [options site [file-info page-info]]
+  (let [{:keys [site-path build-path]} options
         page (make-page file-info page-info)
         input (input-file site-path (:path file-info))
         output (output-file build-path (:url page))]
@@ -108,10 +109,10 @@
                           (content-section (line-seq reader))))))))
 
 (defn compile-content!
-  [comp-state site-map]
+  [options site-map]
   (let [site (pages->site (map (partial apply make-page) site-map))]
     (doseq [content-map site-map]
-      (compile-file! site comp-state content-map))))
+      (compile-file! options site content-map))))
 
 (defn build-site
   [options source-file? render]
