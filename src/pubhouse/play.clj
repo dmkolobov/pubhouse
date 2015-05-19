@@ -8,17 +8,17 @@
   [site url label]
   [:li
    (when (= (get-in site [:current-page :url]) url) ">")
-   [:a {:href url} label]])  
+   [:a {:href (str "/" url)} label]])  
 
 (defn top-nav
   [site]
   [:ul
-   (->> (seq site)
-        (filter #(not (contains? (last %) :url)))
-        (map (fn [[name _]]
-               (nav-item site (str "/" name) (clojure.string/capitalize name))))
-        (cons (nav-item site "/index" "Home")))])
-
+   (->> (seq (dissoc site :current-page))
+        (map (fn [[name data]]
+               (if-let [url (:url data)]
+                 (nav-item site url (:title data))
+                 (nav-item site name
+                           (clojure.string/capitalize name))))))])
 (defn play-template
   [site content]
   (hiccup/html
