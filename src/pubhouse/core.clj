@@ -95,9 +95,8 @@
     (fs/file (str url ".html"))))
 
 (defn compile-file!
-  [options site [file-info page-info]]
-  (let [{:keys [site-path build-path]} options
-        page (make-page file-info page-info)
+  [{:keys [site-path build-path]} site [file-info page-info]]
+  (let [page (make-page file-info page-info)
         input (input-file site-path (:path file-info))
         output (output-file build-path (:url page))]
     (with-io input output
