@@ -6,6 +6,7 @@
             [me.raynes.fs :as fs]))
 
 (def ^:dynamic *site-map* nil)
+(def ^:dynamic *source-file?* nil)
 (def ^:dynamic *render* nil)
 (def ^:dynamic *meta-sep*  "===")
 
@@ -51,7 +52,7 @@
   (reset! *site-map*
           (fs/with-cwd "content"
             (doall
-             (for [file (->> (fs/file ".") (file-seq) (filter content-file?))]
+             (for [file (->> (fs/file ".") (file-seq) (filter *source-file?*))]
                (with-open [reader (clojure.java.io/reader file)]
                  [(get-file-info file) (get-page-info (line-seq reader))]))))))
 
@@ -113,8 +114,10 @@
       (compile-file! site comp-state content-map))))
 
 (defn build-site
-  [options render]
-  (binding [*site-map* (atom {})
-            *render* render]
-    (fs/with-cwd (:site-path options) (build-site-map!))
-    (compile-content! options @*site-map*)))
+  [options source-file? render]
+  (let [options (assoc options :root fs/*cwd*)]
+    (binding [*site-map* (atom {})
+              *source-file?* source-file?
+              *render* render]
+      (fs/with-cwd (:site-path options) (build-site-map!))
+      (compile-content! options @*site-map*))))

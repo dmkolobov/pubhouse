@@ -27,21 +27,23 @@
      [:title (:title page)]
      [:link {:rel "stylesheet" :src "style.css"}]]
     [:body
-     (:url (:current-page site))
      (top-nav site)
+     [:h1 (:title page)]
      content
      [:div.development
-      [:pre (with-out-str (clojure.pprint/pprint site))]
-      [:div (:url page)]
-      [:div (get-in site [:current-page :url])]]]]))
+      [:pre (with-out-str (clojure.pprint/pprint site))]]]]))
 
 (defn md-lines->html
   [lines]
   (md/md-to-html-string (clojure.string/join "\n" lines)))
 
-(pb/build-site
- {:site-path "example"
-  :build-path "example-build"}
-  (fn [site file-info page content-lines]
-    (when (= ".md" (fs/extension (:path file-info)))
-      (play-template site page (md-lines->html content-lines)))))
+(defn play
+  []
+  (pb/build-site
+   {:site-path "example"
+    :build-path "example-build"}
+   (fn [file]
+     (= ".md" (fs/extension file)))
+   (fn [site file-info page content-lines]
+     (when (= ".md" (fs/extension (:path file-info)))
+       (play-template site page (md-lines->html content-lines))))))
