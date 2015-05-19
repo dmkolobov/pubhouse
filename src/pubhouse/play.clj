@@ -5,20 +5,24 @@
             [pubhouse.core :as pb]))
 
 (defn nav-item
-  [site url label]
-  [:li
-   (when (= (get-in site [:current-page :url]) url) ">")
-   [:a {:href (str "/" url)} label]])  
+  [current-url url label]
+  [:div
+   [:a {:href url}
+    (when (= current-url url) ">")
+    label]])
 
 (defn top-nav
-  [site]
+  [current-url site]
   [:ul
-   (->> (seq (dissoc site :current-page))
+   (->> (seq site)
         (map (fn [[name data]]
                (if-let [url (:url data)]
-                 (nav-item site url (:title data))
-                 (nav-item site name
-                           (clojure.string/capitalize name))))))])
+                 [:li (nav-item current-url url (:title data))]
+                 (when-let [index (get data "index")]
+                   [:li
+                    (nav-item current-url (:url index) (:title index))
+                    (top-nav current-url (dissoc data "index"))])))))])
+
 (defn play-template
   [site content]
   (hiccup/html
@@ -27,7 +31,7 @@
      [:title (get-in site [:current-page :title])]
      [:link {:rel "stylesheet" :src "style.css"}]]
     [:body
-     (top-nav site)
+     (top-nav (get-in site [:current-page :url]) (dissoc site :current-page))
      [:h1 (get-in site [:current-page :title])]
      content
      [:div.development

@@ -50,10 +50,6 @@
   [s]
   (if-let [e (fs/extension s)] (clojure.string/replace s e "") s))
 
-(defn pages->site
-  [pages]
-  (reduce #(assoc-in %1 (fs/split (:url %2)) %2) {} pages))
-
 (defn with-io
   "Creates a reader and writer using the input and output files, and invokes the 
   f with the arguments (reader writer). Ensures that the parent directory of the output
@@ -80,45 +76,21 @@
   (fs/with-cwd build-path
     (fs/file (str url ".html"))))
 
-;; Suppose we have the following directory structure in our content directory:
-;; .
-;; |--index.md
-;; |--readme.md
-;; |--foo
-;; |  |--index.md
-;; |  |--foobar.md
-;; |--car
-;;    |--carfar.md
-;;    |--hello
-;;       |--index.md
-;;       |--world.md
-;;       |--unix.md
-;;
-;; A __site map__ for the directory structure would be a data structure like
-;; the following:
-
-(def example-site
-  {:index  {:url "/" :path "index.md"}
-   :readme {:url "/readme" :path "readme.md"}
-   :foo
-   {:index  {:url "/foo" :path "foo/index.md"}
-    :foobar {:url "/foobar" :path "foo/foobar.md"}}
-   :car
-   {:carfar {:url "/carfar" :path "car/carfar.md"}
-    :hello
-    {:index {:url "/car/hello" :path "car/hello/index.md"}
-     :world {:url "/car/hello/world" :path "car/hello/world.md"}
-     :unix {:url "/car/hello/unix" :path "car/hello/unix.md"}}}})
+(defn canonical-url
+  [url]
+  (let [url (str "/" url)]
+    (clojure.string/replace url "index" "")))
 
 (defn make-page
   [file-info page-info]
   (merge page-info
-         {:url (strip-extension (:path file-info))}))
+         {:url (canonical-url
+                (strip-extension
+                 (:path file-info)))}))
 
 (defn compile-file!
   [{:keys [site-path build-path]} site [file-info page-info]]
-  (let [page (make-page file-info page-info)
-        path (:path file-info)
+  (let [path (:path file-info)
         input (input-file site-path path)
         output (output-file build-path (strip-extension path))]
     (with-io input output
@@ -127,7 +99,7 @@
                 (*render* file-info
                           (assoc site
                                  :current-page
-                                 (assoc page
+                                 (assoc (make-page file-info page-info)
                                         :content-lines
                                         (content-section (line-seq reader))))))))))
 
@@ -140,9 +112,19 @@
          (with-open [reader (clojure.java.io/reader file)]
            [(get-file-info file) (get-page-info (line-seq reader))]))))))
 
+(defn content->site
+  [site-map]
+  (reduce (fn [site [file-info page-info]]
+            (assoc-in site
+                      (fs/split
+                       (strip-extension (:path file-info)))
+                      (make-page file-info page-info)))
+          {}
+          site-map))
+  
 (defn compile-content!
   [options site-map]
-  (let [site (pages->site (map (partial apply make-page) site-map))]
+  (let [site (content->site site-map)]
     (doseq [content-map site-map]
       (compile-file! options site content-map))))
 
