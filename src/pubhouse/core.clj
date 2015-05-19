@@ -102,10 +102,12 @@
     (with-io input output
       (fn [reader writer]
         (.write writer
-                (*render* (assoc site :current-page page)
-                          file-info
-                          page
-                          (content-section (line-seq reader))))))))
+                (*render* file-info
+                          (assoc site
+                                 :current-page
+                                 (assoc page
+                                        :content-lines
+                                        (content-section (line-seq reader))))))))))
 
 (defn compile-content!
   [options site-map]

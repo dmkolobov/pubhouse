@@ -20,23 +20,24 @@
         (cons (nav-item site "/index" "Home")))])
 
 (defn play-template
-  [site page content]
+  [site content]
   (hiccup/html
    [:html
     [:head
-     [:title (:title page)]
+     [:title (get-in site [:current-page :title])]
      [:link {:rel "stylesheet" :src "style.css"}]]
     [:body
      (top-nav site)
-     [:h1 (:title page)]
+     [:h1 (get-in site [:current-page :title])]
      content
      [:div.development
       [:pre {:style "font-family: Courier;line-height: 1.5em;"}
        (with-out-str (clojure.pprint/pprint site))]]]]))
 
-(defn md-lines->html
-  [lines]
-  (md/md-to-html-string (clojure.string/join "\n" lines)))
+(defn md-site->html
+  [site]
+  (md/md-to-html-string
+   (clojure.string/join "\n" (get-in site [:current-page :content-lines]))))
 
 (defn play
   []
@@ -45,6 +46,6 @@
     :build-path "example-build"}
    (fn [file]
      (= ".md" (fs/extension file)))
-   (fn [site file-info page content-lines]
+   (fn [file-info site]
      (when (= ".md" (fs/extension (:path file-info)))
-       (play-template site page (md-lines->html content-lines))))))
+       (play-template site (md-site->html site))))))
