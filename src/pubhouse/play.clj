@@ -31,7 +31,8 @@
      [:h1 (:title page)]
      content
      [:div.development
-      [:pre (with-out-str (clojure.pprint/pprint site))]]]]))
+      [:pre {:style "font-family: Courier;line-height: 1.5em;"}
+       (with-out-str (clojure.pprint/pprint site))]]]]))
 
 (defn md-lines->html
   [lines]
