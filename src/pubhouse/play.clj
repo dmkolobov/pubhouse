@@ -14,7 +14,7 @@
 
 (defn top-nav
   [current-url site]
-  [:ul
+  [:ul.navigation
    (->> (seq site)
         (map (fn [[name data]]
                (if-let [url (:url data)]
@@ -31,7 +31,7 @@
      [:html
       [:head
        [:title title]
-       [:link {:rel "stylesheet" :src "style.css"}]]
+       [:link {:rel "stylesheet" :href "/style.css"}]]
       [:body
        (top-nav url (dissoc site :current-page))
        [:h1 title]
@@ -61,5 +61,18 @@
                                 (clojure.string/join "\n")
                                 (md/md-to-html-string))))))
 
-(def jekyll-compiler
-  (pubhouse/compiler md-file? read-info compile-page))
+(def md-compiler
+  (pubhouse/compiler "html" md-file? read-info compile-page))
+
+(def css-compiler
+  (pubhouse/compiler "css"
+                     (fn [f] (= ".css" (fs/extension f)))
+                     (constantly {})
+                     (fn [_ in out]
+                       (spit out (slurp in)))))
+
+(defn jekyll-compile
+  [site-root build-root]
+  (md-compiler (fs/with-cwd site-root (fs/file "content")) build-root)
+  (css-compiler (fs/with-cwd site-root (fs/file "resources")) build-root))
+

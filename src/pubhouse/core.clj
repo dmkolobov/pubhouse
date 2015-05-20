@@ -19,7 +19,7 @@
 (defn path->url
   "Convert a path to a url, with paths relative to the current value of *cwd*"
   [path]
-  (-> path (relative-path) (strip-extensions) (str ".html")))
+  (-> path (relative-path) (strip-extensions) (str ".resource")))
 
 (defn file-mapping
   [page-info root file]
@@ -47,7 +47,7 @@
   "Given some url, ensures that it is an absolute url. If url is a path to
   some index.html, return a url to the parent directory."
   [url]
-  (str "/" (-> url (clojure.string/replace "index.html" "") (strip-extensions))))
+  (str "/" (-> url (clojure.string/replace "index.resource" "") (strip-extensions))))
 
 (defn add-page
   [site info]
@@ -59,31 +59,35 @@
   [mapping]
   (reduce #(add-page %1 (last %2)) {} mapping))
 
-(defn html-file
+(defn output-file
   "Given the path to the build directory and url relative to the site root,
   open a writer to the resulting file. Ensures that parent directories of 
   the site exist."
-  [build-root url]
-  (let [file (fs/with-cwd build-root (fs/file url))
+  [build-root url file-type]
+  (let [file (fs/with-cwd build-root
+               (fs/file
+                (str (strip-extensions url) "." file-type)))
         parent (fs/parent file)]
     (when (not (fs/exists? parent)) (fs/mkdirs parent))
     file))
 
 (defn compile-site
-  [compile-page {:keys [site-root build-root page-file? page-info]}]
+  [compile-page {:keys [site-root build-root page-file? file-type page-info]}]
   (let [site-map (site-mapping page-file? page-info site-root)
         site (mapping->site site-map)]
     (doseq [[path {:keys [url]}] site-map]
-      (let [input (fs/file path)
-            output (html-file build-root url)
-            site (assoc site :current-page (get-in site (site-nav url)))]
-        (compile-page site input output)))))
+      (compile-page (assoc site
+                           :current-page
+                           (get-in site (site-nav url)))
+                    (fs/file path)
+                    (output-file build-root url file-type)))))
 
 (defn compiler
-  [page-file? page-info compile-page]
+  [file-type page-file? page-info compile-page]
   (fn [site-root build-root]
     (compile-site compile-page
-                  {:site-root site-root
+                  {:file-type file-type
+                   :site-root site-root
                    :build-root build-root
                    :page-file? page-file?
                    :page-info page-info})))
