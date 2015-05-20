@@ -26,18 +26,18 @@
 
 (defn play-template
   [site content]
-  (hiccup/html
-   [:html
-    [:head
-     [:title (get-in site [:current-page :title])]
-     [:link {:rel "stylesheet" :src "style.css"}]]
-    [:body
-     (top-nav (get-in site [:current-page :url]) (dissoc site :current-page))
-     [:h1 (get-in site [:current-page :title])]
-     content
-     [:div.development
-      [:pre {:style "font-family: Courier;line-height: 1.5em;"}
-       (with-out-str (clojure.pprint/pprint site))]]]]))
+  (let [{:keys [url title content]} (:current-page site)]
+    (hiccup/html
+     [:html
+      [:head
+       [:title title]
+       [:link {:rel "stylesheet" :src "style.css"}]]
+      [:body
+       (top-nav url (dissoc site :current-page))
+       [:h1 title]
+       content
+       [:div.development
+        [:pre (with-out-str (clojure.pprint/pprint site))]]]])))
 
 (defn read-info
   "Reads the lines preceding the info block separator '===' in as a 
@@ -58,8 +58,7 @@
 (defn play
   []
   (compile-site (fn [site reader writer]
-                  (.write writer
-                          (play-template site (read-content reader))))
+                  (.write writer (play-template site (read-content reader))))
                 {:site-root "example/content"
                  :info read-info
                  :build-root "example-build"
