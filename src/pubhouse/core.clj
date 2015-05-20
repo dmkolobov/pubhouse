@@ -22,20 +22,20 @@
   (-> path (relative-path) (strip-extensions) (str ".resource")))
 
 (defn file-mapping
-  [page-info root file]
+  [analyze-page root file]
   (let [path (.getPath file)]
     (fs/with-cwd root
-      [path (merge {:url (path->url path)} (page-info file))])))
+      [path (merge {:url (path->url path)} (analyze-page file))])))
 
 (defn site-mapping
   "Creates a lazy sequence of [path url] pairs for each file in the directory
   root-path which matches the predicate page-file?. The url returned is relative 
   to the root url, whereas the path is absolute."
-  [page-file? page-info root-path]
+  [page-file? analyze-page root-path]
   (let [root (fs/file root-path)]
     (->> (file-seq root)
          (filter page-file?)
-         (map #(file-mapping page-info root %)))))
+         (map #(file-mapping analyze-page root %)))))
 
 (defn page-key
   "Convert a url relative to the root of the site into a sequence of its path parts
@@ -50,8 +50,8 @@
   (str "/" (-> url (clojure.string/replace "index.resource" "") (strip-extensions))))
 
 (defn add-page
-  [site info]
-  (assoc-in site (page-key (:url info)) (update-in info [:url] canonical-url)))
+  [site page-info]
+  (assoc-in site (page-key (:url page-info)) (update-in page-info [:url] canonical-url)))
 
 (defn mapping->site
   "Convert a sequence of [path url] pairs to a map structure representing
@@ -76,8 +76,8 @@
     file))
 
 (defn compile-site
-  [compile-page {:keys [site-root build-root page-file? file-type page-info]}]
-  (let [site-map (site-mapping page-file? page-info site-root)
+  [compile-page {:keys [site-root build-root page-file? file-type analyze-page]}]
+  (let [site-map (site-mapping page-file? analyze-page site-root)
         site (mapping->site site-map)]
     (doseq [[path {:keys [url]}] site-map]
       (compile-page (navigate site url)
@@ -85,11 +85,11 @@
                     (output-file build-root url file-type)))))
 
 (defn compiler
-  [file-type page-file? page-info compile-page]
+  [file-type page-file? analyze-page compile-page]
   (fn [site-root build-root]
     (compile-site compile-page
                   {:file-type file-type
                    :site-root site-root
                    :build-root build-root
                    :page-file? page-file?
-                   :page-info page-info})))
+                   :analyze-page analyze-page})))

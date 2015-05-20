@@ -41,7 +41,7 @@
 
 (defn md-file? [file] (= ".md" (fs/extension file)))
 
-(defn read-info
+(defn analyze-md-page
   "Reads the lines preceding the info block separator '===' in as a 
   Clojure data structure."
   [file]
@@ -62,7 +62,7 @@
                                 (md/md-to-html-string))))))
 
 (def md-compiler
-  (pubhouse/compiler "html" md-file? read-info compile-page))
+  (pubhouse/compiler "html" md-file? analyze-md-page compile-page))
 
 (def css-compiler
   (pubhouse/compiler "css"
