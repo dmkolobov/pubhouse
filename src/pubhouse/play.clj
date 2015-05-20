@@ -42,9 +42,10 @@
 (defn read-info
   "Reads the lines preceding the info block separator '===' in as a 
   Clojure data structure."
-  [reader]
-  (let [not-sep #(not= % "===")]
-    (->> (line-seq reader) (take-while not-sep) (join "\n") (read-string))))
+  [file]
+  (with-open [reader (clojure.java.io/reader file)]
+    (let [not-sep #(not= % "===")]
+      (->> (line-seq reader) (take-while not-sep) (join "\n") (read-string)))))
 
 (defn read-content
   [reader]

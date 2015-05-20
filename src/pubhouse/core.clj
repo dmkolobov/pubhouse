@@ -31,10 +31,7 @@
   [info root file]
   (let [path (.getPath file)]
     (fs/with-cwd root
-      [path
-       (merge {:url (path->url path)}
-              (with-open [reader (io/reader file)]
-                (info reader)))])))
+      [path (merge {:url (path->url path)} (info file))])))
 
 (defn site-mapping
   "Creates a lazy sequence of [path url] pairs for each file in the directory
@@ -65,8 +62,8 @@
 
 (defn html-writer
   "Given the path to the build directory and url relative to the site root,
-   open a writer to the resulting file. Ensures that parent directories of 
-   the site exist."
+  open a writer to the resulting file. Ensures that parent directories of 
+  the site exist."
   [build-root url]
   (let [file (fs/with-cwd build-root (fs/file url))
         parent (fs/parent file)]
