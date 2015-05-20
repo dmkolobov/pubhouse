@@ -60,7 +60,7 @@
           {}
           mapping))
 
-(defn html-writer
+(defn html-file
   "Given the path to the build directory and url relative to the site root,
   open a writer to the resulting file. Ensures that parent directories of 
   the site exist."
@@ -68,18 +68,15 @@
   (let [file (fs/with-cwd build-root (fs/file url))
         parent (fs/parent file)]
     (when (not (fs/exists? parent)) (fs/mkdirs parent))
-    (io/writer file)))
+    file))
 
 (defn compile-site
   [f {:keys [site-root build-root source-file? info]}]
   (let [site-map (site-mapping source-file? info site-root)
         site (mapping->site site-map)]
     (doseq [[path {:keys [url]}] site-map]
-      (with-open [reader (io/reader (fs/file path))
-                  writer (html-writer build-root url)]
-        (f (assoc site
-                  :current-page
-                  (get-in site (site-nav url)))
-           reader
-           writer)))))
-      
+      (let [input (fs/file path)
+            output (html-file build-root url)]
+        (f (assoc site :current-page (get-in site (site-nav url)))
+           input
+           output)))))

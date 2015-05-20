@@ -55,10 +55,15 @@
        (clojure.string/join "\n")
        (md/md-to-html-string)))
 
+(defn compile-page
+  [site in out]
+  (with-open [reader (clojure.java.io/reader in)
+              writer (clojure.java.io/writer out)]
+    (.write writer (play-template site (read-content reader)))))
+
 (defn play
   []
-  (compile-site (fn [site reader writer]
-                  (.write writer (play-template site (read-content reader))))
+  (compile-site compile-page
                 {:site-root "example/content"
                  :info read-info
                  :build-root "example-build"
