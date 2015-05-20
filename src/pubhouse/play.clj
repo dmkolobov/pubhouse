@@ -2,50 +2,77 @@
   (:require [hiccup.core :as hiccup]
             [markdown.core :as md]
             [me.raynes.fs :as fs]
-            [pubhouse.core :as pb]))
+            [clojure.string :refer [join]]
+            [pubhouse.core :as pubhouse]))
 
 (defn nav-item
-  [site url label]
-  [:li
-   (when (= (get-in site [:current-page :url]) url) ">")
-   [:a {:href (str "/" url)} label]])  
+  [current-url url label]
+  [:div
+   [:a {:href url}
+    (when (= current-url url) ">")
+    label]])
 
 (defn top-nav
-  [site]
-  [:ul
-   (->> (seq (dissoc site :current-page))
+  [current-url site]
+  [:ul.navigation
+   (->> (seq site)
         (map (fn [[name data]]
                (if-let [url (:url data)]
-                 (nav-item site url (:title data))
-                 (nav-item site name
-                           (clojure.string/capitalize name))))))])
+                 [:li (nav-item current-url url (get-in data [:title]))]
+                 (when-let [index (get data "index")]
+                   [:li
+                    (nav-item current-url (:url index) (get-in index [:title]))
+                    (top-nav current-url (dissoc data "index"))])))))])
+
 (defn play-template
   [site content]
-  (hiccup/html
-   [:html
-    [:head
-     [:title (get-in site [:current-page :title])]
-     [:link {:rel "stylesheet" :src "style.css"}]]
-    [:body
-     (top-nav site)
-     [:h1 (get-in site [:current-page :title])]
-     content
-     [:div.development
-      [:pre {:style "font-family: Courier;line-height: 1.5em;"}
-       (with-out-str (clojure.pprint/pprint site))]]]]))
+  (let [{:keys [url title content]} (:current-page site)]
+    (hiccup/html
+     [:html
+      [:head
+       [:title title]
+       [:link {:rel "stylesheet" :href "/style.css"}]]
+      [:body
+       (top-nav url (dissoc site :current-page))
+       [:h1 title]
+       content
+       [:div.development
+        [:pre (with-out-str (clojure.pprint/pprint site))]]]])))
 
-(defn md-site->html
-  [site]
-  (md/md-to-html-string
-   (clojure.string/join "\n" (get-in site [:current-page :content-lines]))))
+(defn md-file? [file] (= ".md" (fs/extension file)))
 
-(defn play
-  []
-  (pb/build-site
-   {:site-path "example"
-    :build-path "example-build"}
-   (fn [file]
-     (= ".md" (fs/extension file)))
-   (fn [file-info site]
-     (when (= ".md" (fs/extension (:path file-info)))
-       (play-template site (md-site->html site))))))
+(defn read-info
+  "Reads the lines preceding the info block separator '===' in as a 
+  Clojure data structure."
+  [file]
+  (with-open [reader (clojure.java.io/reader file)]
+    (let [not-sep #(not= % "===")]
+      (->> (line-seq reader) (take-while not-sep) (join "\n") (read-string)))))
+
+(defn compile-page
+  [site in out]
+  (with-open [reader (clojure.java.io/reader in)
+              writer (clojure.java.io/writer out)]
+    (.write writer
+            (play-template site
+                           (->> (line-seq reader)
+                                (drop-while #(not= % "==="))
+                                (drop 1)
+                                (clojure.string/join "\n")
+                                (md/md-to-html-string))))))
+
+(def md-compiler
+  (pubhouse/compiler "html" md-file? read-info compile-page))
+
+(def css-compiler
+  (pubhouse/compiler "css"
+                     (fn [f] (= ".css" (fs/extension f)))
+                     (constantly {})
+                     (fn [_ in out]
+                       (spit out (slurp in)))))
+
+(defn jekyll-compile
+  [site-root build-root]
+  (md-compiler (fs/with-cwd site-root (fs/file "content")) build-root)
+  (css-compiler (fs/with-cwd site-root (fs/file "resources")) build-root))
+
