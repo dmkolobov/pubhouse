@@ -67,7 +67,7 @@
   "Given the path to the build directory and url relative to the site root,
   open a writer to the resulting file. Ensures that parent directories of 
   the site exist."
-  [build-root url file-type]
+  [build-root file-type url]
   (let [file (fs/with-cwd build-root
                (fs/file
                 (str (strip-extensions url) "." file-type)))
@@ -75,21 +75,17 @@
     (when (not (fs/exists? parent)) (fs/mkdirs parent))
     file))
 
-(defn compile-site
-  [compile-page {:keys [site-root build-root page-file? file-type analyze-page]}]
-  (let [site-map (site-mapping page-file? analyze-page site-root)
-        site (mapping->site site-map)]
+(defn run-compiler
+  [site-map compile mk-output]
+  (let [site (mapping->site site-map)]
     (doseq [[path {:keys [url]}] site-map]
-      (compile-page (navigate site url)
-                    (fs/file path)
-                    (output-file build-root url file-type)))))
+      (compile (navigate site url) (fs/file path) (mk-output url)))))
 
 (defn compiler
   [file-type page-file? analyze-page compile-page]
   (fn [site-root build-root]
-    (compile-site compile-page
-                  {:file-type file-type
-                   :site-root site-root
-                   :build-root build-root
-                   :page-file? page-file?
-                   :analyze-page analyze-page})))
+    (run-compiler (site-mapping page-file? analyze-page site-root)
+                  compile-page
+                  (partial output-file build-root file-type))))
+
+
