@@ -1,5 +1,6 @@
 (ns pubhouse.core
   (:require [clojure.string :refer [join]]
+            [clojure.java.io :as io]
             [me.raynes.fs :as fs]))
 
 (defn relative-path
@@ -27,54 +28,57 @@
   (str "/" (-> url (clojure.string/replace "index.html" "") (strip-extensions))))
 
 (defn file-mapping
-  [root file]
+  [info root file]
   (let [path (.getPath file)]
-    (fs/with-cwd root [path (path->url path)])))
+    (fs/with-cwd root
+      [path
+       (merge {:url (path->url path)}
+              (with-open [reader (io/reader file)]
+                (info reader)))])))
 
 (defn site-mapping
-  [source-file? root-path]
+  "Creates a lazy sequence of [path url] pairs for each file in the directory
+  root-path which matches the predicate source-file?. The url returned is relative 
+  to the root url, whereas the path is absolute."
+  [source-file? info root-path]
   (let [root (fs/file root-path)]
     (->> (file-seq root)
          (filter source-file?)
-         (map (partial file-mapping root)))))
-
-(defn read-info
-  "Reads the lines preceding the info block separator '===' in as a 
-  Clojure data structure."
-  [reader]
-  (let [not-sep #(not= % "===")]
-    (->> (line-seq reader) (take-while not-sep) (join "\n") (read-string))))
-
-(defn make-page
-  [path url]
-  {:url (canonical-url url)
-   :info (with-open [reader (clojure.java.io/reader (fs/file path))]
-           (read-info reader))})
+         (map #(file-mapping info root %)))))
 
 (defn resource-key
+  "Convert a url relative to the root of the site into a sequence of its path parts
+  ,omitting any extensions in the url."
   [url]
   (-> url (strip-extensions) (fs/split)))
 
 (defn mapping->site
+  "Convert a sequence of [path url] pairs to a map structure representing
+  the directory layout of the site."
   [mapping]
-  (reduce (fn [site [path url]]
-            (assoc-in site (resource-key url) (make-page path url)))
+  (reduce (fn [site [path inf]]
+            (assoc-in site
+                      (resource-key (:url inf))
+                      (update-in inf [:url] canonical-url)))
           {}
           mapping))
 
 (defn html-writer
+  "Given the path to the build directory and url relative to the site root,
+   open a writer to the resulting file. Ensures that parent directories of 
+   the site exist."
   [build-root url]
   (let [file (fs/with-cwd build-root (fs/file url))
         parent (fs/parent file)]
     (when (not (fs/exists? parent)) (fs/mkdirs parent))
-    (clojure.java.io/writer file)))
+    (io/writer file)))
 
 (defn compile-site
-  [f {:keys [site-root build-root source-file?]}]
-  (let [site-map (site-mapping source-file? site-root)
+  [f {:keys [site-root build-root source-file? info]}]
+  (let [site-map (site-mapping source-file? info site-root)
         site (mapping->site site-map)]
-    (doseq [[path url] site-map]
-      (with-open [reader (clojure.java.io/reader (fs/file path))
+    (doseq [[path {:keys [url]}] site-map]
+      (with-open [reader (io/reader (fs/file path))
                   writer (html-writer build-root url)]
         (f (assoc site
                   :current-page
