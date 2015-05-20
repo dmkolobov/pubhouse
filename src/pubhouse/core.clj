@@ -37,7 +37,7 @@
          (filter page-file?)
          (map #(file-mapping page-info root %)))))
 
-(defn site-nav
+(defn page-key
   "Convert a url relative to the root of the site into a sequence of its path parts
   ,omitting any extensions in the url."
   [url]
@@ -51,13 +51,17 @@
 
 (defn add-page
   [site info]
-  (assoc-in site (site-nav (:url info)) (update-in info [:url] canonical-url)))
+  (assoc-in site (page-key (:url info)) (update-in info [:url] canonical-url)))
 
 (defn mapping->site
   "Convert a sequence of [path url] pairs to a map structure representing
   the directory layout of the site."
   [mapping]
   (reduce #(add-page %1 (last %2)) {} mapping))
+
+(defn navigate
+  [site url]
+  (assoc site :current-page (get-in site (page-key url))))
 
 (defn output-file
   "Given the path to the build directory and url relative to the site root,
@@ -76,9 +80,7 @@
   (let [site-map (site-mapping page-file? page-info site-root)
         site (mapping->site site-map)]
     (doseq [[path {:keys [url]}] site-map]
-      (compile-page (assoc site
-                           :current-page
-                           (get-in site (site-nav url)))
+      (compile-page (navigate site url)
                     (fs/file path)
                     (output-file build-root url file-type)))))
 
