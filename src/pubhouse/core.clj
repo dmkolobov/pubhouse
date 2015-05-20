@@ -21,12 +21,6 @@
   [path]
   (-> path (relative-path) (strip-extensions) (str ".html")))
 
-(defn canonical-url
-  "Given some url, ensures that it is an absolute url. If url is a path to
-  some index.html, return a url to the parent directory."
-  [url]
-  (str "/" (-> url (clojure.string/replace "index.html" "") (strip-extensions))))
-
 (defn file-mapping
   [info root file]
   (let [path (.getPath file)]
@@ -43,11 +37,17 @@
          (filter source-file?)
          (map #(file-mapping info root %)))))
 
-(defn resource-key
+(defn site-nav
   "Convert a url relative to the root of the site into a sequence of its path parts
   ,omitting any extensions in the url."
   [url]
   (-> url (strip-extensions) (fs/split)))
+
+(defn canonical-url
+  "Given some url, ensures that it is an absolute url. If url is a path to
+  some index.html, return a url to the parent directory."
+  [url]
+  (str "/" (-> url (clojure.string/replace "index.html" "") (strip-extensions))))
 
 (defn mapping->site
   "Convert a sequence of [path url] pairs to a map structure representing
@@ -55,7 +55,7 @@
   [mapping]
   (reduce (fn [site [path inf]]
             (assoc-in site
-                      (resource-key (:url inf))
+                      (site-nav (:url inf))
                       (update-in inf [:url] canonical-url)))
           {}
           mapping))
@@ -79,7 +79,7 @@
                   writer (html-writer build-root url)]
         (f (assoc site
                   :current-page
-                  (get-in site (resource-key url)))
+                  (get-in site (site-nav url)))
            reader
            writer)))))
       
