@@ -22,20 +22,20 @@
   (-> path (relative-path) (strip-extensions) (str ".html")))
 
 (defn file-mapping
-  [info root file]
+  [page-info root file]
   (let [path (.getPath file)]
     (fs/with-cwd root
-      [path (merge {:url (path->url path)} (info file))])))
+      [path (merge {:url (path->url path)} (page-info file))])))
 
 (defn site-mapping
   "Creates a lazy sequence of [path url] pairs for each file in the directory
-  root-path which matches the predicate source-file?. The url returned is relative 
+  root-path which matches the predicate page-file?. The url returned is relative 
   to the root url, whereas the path is absolute."
-  [source-file? info root-path]
+  [page-file? page-info root-path]
   (let [root (fs/file root-path)]
     (->> (file-seq root)
-         (filter source-file?)
-         (map #(file-mapping info root %)))))
+         (filter page-file?)
+         (map #(file-mapping page-info root %)))))
 
 (defn site-nav
   "Convert a url relative to the root of the site into a sequence of its path parts
@@ -50,8 +50,8 @@
   (str "/" (-> url (clojure.string/replace "index.html" "") (strip-extensions))))
 
 (defn add-page
-  [site inf]
-  (assoc-in site (site-nav (:url inf)) (update-in inf [:url] canonical-url)))
+  [site info]
+  (assoc-in site (site-nav (:url info)) (update-in info [:url] canonical-url)))
 
 (defn mapping->site
   "Convert a sequence of [path url] pairs to a map structure representing
@@ -70,12 +70,20 @@
     file))
 
 (defn compile-site
-  [f {:keys [site-root build-root source-file? info]}]
-  (let [site-map (site-mapping source-file? info site-root)
+  [compile-page {:keys [site-root build-root page-file? page-info]}]
+  (let [site-map (site-mapping page-file? page-info site-root)
         site (mapping->site site-map)]
     (doseq [[path {:keys [url]}] site-map]
       (let [input (fs/file path)
-            output (html-file build-root url)]
-        (f (assoc site :current-page (get-in site (site-nav url)))
-           input
-           output)))))
+            output (html-file build-root url)
+            site (assoc site :current-page (get-in site (site-nav url)))]
+        (compile-page site input output)))))
+
+(defn compiler
+  [page-file? page-info compile-page]
+  (fn [site-root build-root]
+    (compile-site compile-page
+                  {:site-root site-root
+                   :build-root build-root
+                   :page-file? page-file?
+                   :page-info page-info})))

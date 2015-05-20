@@ -3,7 +3,7 @@
             [markdown.core :as md]
             [me.raynes.fs :as fs]
             [clojure.string :refer [join]]
-            [pubhouse.core :refer [compile-site]]))
+            [pubhouse.core :as pubhouse]))
 
 (defn nav-item
   [current-url url label]
@@ -39,6 +39,8 @@
        [:div.development
         [:pre (with-out-str (clojure.pprint/pprint site))]]]])))
 
+(defn md-file? [file] (= ".md" (fs/extension file)))
+
 (defn read-info
   "Reads the lines preceding the info block separator '===' in as a 
   Clojure data structure."
@@ -47,24 +49,17 @@
     (let [not-sep #(not= % "===")]
       (->> (line-seq reader) (take-while not-sep) (join "\n") (read-string)))))
 
-(defn read-content
-  [reader]
-  (->> (line-seq reader)
-       (drop-while #(not= % "==="))
-       (drop 1)
-       (clojure.string/join "\n")
-       (md/md-to-html-string)))
-
 (defn compile-page
   [site in out]
   (with-open [reader (clojure.java.io/reader in)
               writer (clojure.java.io/writer out)]
-    (.write writer (play-template site (read-content reader)))))
+    (.write writer
+            (play-template site
+                           (->> (line-seq reader)
+                                (drop-while #(not= % "==="))
+                                (drop 1)
+                                (clojure.string/join "\n")
+                                (md/md-to-html-string))))))
 
-(defn play
-  []
-  (compile-site compile-page
-                {:site-root "example/content"
-                 :info read-info
-                 :build-root "example-build"
-                 :source-file? (fn [f] (= ".md" (fs/extension f)))}))
+(def jekyll-compiler
+  (pubhouse/compiler md-file? read-info compile-page))
