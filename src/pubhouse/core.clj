@@ -49,16 +49,15 @@
   [url]
   (str "/" (-> url (clojure.string/replace "index.html" "") (strip-extensions))))
 
+(defn add-page
+  [site inf]
+  (assoc-in site (site-nav (:url inf)) (update-in inf [:url] canonical-url)))
+
 (defn mapping->site
   "Convert a sequence of [path url] pairs to a map structure representing
   the directory layout of the site."
   [mapping]
-  (reduce (fn [site [path inf]]
-            (assoc-in site
-                      (site-nav (:url inf))
-                      (update-in inf [:url] canonical-url)))
-          {}
-          mapping))
+  (reduce #(add-page %1 (last %2)) {} mapping))
 
 (defn html-file
   "Given the path to the build directory and url relative to the site root,
