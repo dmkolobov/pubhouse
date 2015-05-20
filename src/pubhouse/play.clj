@@ -26,7 +26,7 @@
 
 (defn play-template
   [site content]
-  (let [{:keys [url title content]} (:current-page site)]
+  (let [{:keys [url title]} (:current-page site)]
     (hiccup/html
      [:html
       [:head
@@ -35,7 +35,7 @@
       [:body
        (top-nav url (dissoc site :current-page))
        [:h1 title]
-       content
+       [:div content]
        [:div.development
         [:pre (with-out-str (clojure.pprint/pprint site))]]]])))
 
