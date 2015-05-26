@@ -21,7 +21,7 @@
   [path]
   (-> path (relative-path) (strip-extensions) (str ".resource")))
 
-(defn file-mapping
+(defn mk-page-record
   [analyze-page root file]
   (let [path (.getPath file)]
     (fs/with-cwd root
@@ -35,11 +35,11 @@
   (let [root (fs/file root-path)]
     (->> (file-seq root)
          (filter page-file?)
-         (map #(file-mapping analyze-page root %)))))
+         (map #(mk-page-record analyze-page root %)))))
 
 (defn page-key
   "Convert a url relative to the root of the site into a sequence of its path parts
-  ,omitting any extensions in the url."
+  ,omitting any extensions in the url. For use with Clojure's *-in functions."
   [url]
   (-> url (strip-extensions) (fs/split)))
 
@@ -50,24 +50,26 @@
   (str "/" (-> url (clojure.string/replace "index.resource" "") (strip-extensions))))
 
 (defn add-page
+  "Helper for adding a page map to the site map."
   [site page-info]
-  (assoc-in site (page-key (:url page-info)) (update-in page-info [:url] canonical-url)))
+  (assoc-in site
+            (page-key (:url page-info))
+            (update-in page-info [:url] canonical-url)))
 
 (defn page?
   "Helper predicate for testing whether an object is a map representing a page."
   [x] (contains? x :url))
 
+(defn add-all-pages
+  [[name val]]
+  [name
+   (if (and (map? val) (not (page? val)))
+     (fixup-site (assoc val :all (->> val (map last) (filter page?))))
+     val)])
+
 (defn fixup-site
   [x]
-  (clojure.walk/walk
-   (fn [[k v]]
-     (if (and (map? v) (not (page? v)))
-       [k (fixup-site (assoc v
-                             :all
-                             (->> v (map last) (filter page?))))]
-       [k v]))
-   identity
-   x))
+  (clojure.walk/walk add-all-pages identity x))
 
 (defn mapping->site
   "Convert a sequence of [path url] pairs to a map structure representing
