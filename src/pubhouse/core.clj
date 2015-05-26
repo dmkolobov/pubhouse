@@ -53,11 +53,27 @@
   [site page-info]
   (assoc-in site (page-key (:url page-info)) (update-in page-info [:url] canonical-url)))
 
+(defn page?
+  "Helper predicate for testing whether an object is a map representing a page."
+  [x] (contains? x :url))
+
+(defn fixup-site
+  [x]
+  (clojure.walk/walk
+   (fn [[k v]]
+     (if (and (map? v) (not (page? v)))
+       [k (fixup-site (assoc v
+                             :all
+                             (->> v (map last) (filter page?))))]
+       [k v]))
+   identity
+   x))
+
 (defn mapping->site
   "Convert a sequence of [path url] pairs to a map structure representing
   the directory layout of the site."
   [mapping]
-  (reduce #(add-page %1 (last %2)) {} mapping))
+  (fixup-site (reduce #(add-page %1 (last %2)) {} mapping)))
 
 (defn navigate
   [site url]

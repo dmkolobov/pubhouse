@@ -39,7 +39,9 @@
        [:div.development
         [:pre (with-out-str (clojure.pprint/pprint site))]]]])))
 
-(defn md-file? [file] (= ".md" (fs/extension file)))
+(defn md-file? [file]
+  (and (= ".md" (fs/extension file))
+       (not (fs/hidden? file))))
 
 (defn analyze-md-page
   "Reads the lines preceding the info block separator '===' in as a 
