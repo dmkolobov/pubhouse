@@ -19,7 +19,7 @@
 (defn path->url
   "Convert a path to a url, with paths relative to the current value of *cwd*"
   [path]
-  (-> path (relative-path) (strip-extensions) (str ".resource")))
+  (-> path (relative-path) (strip-extensions) (str ".html")))
 
 (defn mk-page-record
   [analyze-page root file]
@@ -47,7 +47,7 @@
   "Given some url, ensures that it is an absolute url. If url is a path to
   some index.html, return a url to the parent directory."
   [url]
-  (str "/" (-> url (clojure.string/replace "index.resource" "") (strip-extensions))))
+  (str "/" (-> url (clojure.string/replace "index.html" "") (strip-extensions))))
 
 (defn add-page
   "Helper for adding a page map to the site map."
@@ -60,7 +60,11 @@
   "Helper predicate for testing whether an object is a map representing a page."
   [x] (contains? x :url))
 
+(declare fixup-site)
+
 (defn add-all-pages
+  "Helper for adding a vector of child pages to a directory map entry under the
+  key :all."
   [[name val]]
   [name
    (if (and (map? val) (not (page? val)))
@@ -94,12 +98,25 @@
     file))
 
 (defn run-compiler
+  "Helper function which actually compiles the content."
   [site-map compile mk-output]
   (let [site (mapping->site site-map)]
     (doseq [[path {:keys [url]}] site-map]
       (compile (navigate site url) (fs/file path) (mk-output url)))))
 
 (defn compiler
+  "Creates a static site compiles.
+
+  The function 'page-file?' is a predicate which takes a file as an argument, and 
+  returns true if the file is a content file. 
+
+  The function 'analyze-page' takes as an argument a content file, and should 
+  nil or a map of data associated with the file. Useful for reading Jekyll style
+  headers. 
+
+  The function 'compile-page' takes as argument a hash representing the site 
+  structure , the input content file, and the output file with an extension of
+  'file-type'."
   [file-type page-file? analyze-page compile-page]
   (fn [site-root build-root]
     (run-compiler (site-mapping page-file? analyze-page site-root)
