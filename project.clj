@@ -5,5 +5,6 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [me.raynes/fs "1.4.6"]
+                 [selmer "0.8.2"]
                  [markdown-clj "0.9.66"]
                  [hiccup "1.0.5"]])
