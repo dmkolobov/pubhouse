@@ -18,14 +18,14 @@
 
 (defn path->url
   "Convert a path to a url, with paths relative to the current value of *cwd*"
-  [path]
-  (-> path (relative-path) (strip-extensions) (str ".html")))
+  [root path]
+  (fs/with-cwd root
+    (-> path (relative-path) (strip-extensions) (str ".html"))))
 
 (defn mk-page-record
   [analyze-page root file]
   (let [path (.getPath file)]
-    (fs/with-cwd root
-      [path (merge {:url (path->url path)} (analyze-page file))])))
+    [path (merge {:url (path->url root path)} (analyze-page file))]))
 
 (defn site-mapping
   "Creates a lazy sequence of [path url] pairs for each file in the directory
@@ -37,7 +37,7 @@
          (filter page-file?)
          (map #(mk-page-record analyze-page root %)))))
 
-(defn page-key
+(defn- page-key
   "Convert a url relative to the root of the site into a sequence of its path parts
   ,omitting any extensions in the url. For use with Clojure's *-in functions."
   [url]

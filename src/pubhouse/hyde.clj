@@ -91,13 +91,16 @@
 
 (defn make-hyde-compiler
   [{:keys [info-sep content-path template-path page-extensions]}]
-  (let [compiler (pub/compiler "html" page-file? page-info compile-page)]
+  (let [compile-site (pub/compiler "html"
+                                   page-file?
+                                   page-info
+                                   compile-page)]
     (fn [site-root build-path]
       (binding [*info-sep* info-sep
                 *page-extensions* page-extensions]
         (set-template-root! site-root template-path)
-        (compiler (fs/with-cwd site-root (fs/file content-path))
-                  build-path)))))
+        (compile-site (fs/with-cwd site-root (fs/file content-path))
+                      build-path)))))
 
 (defmethod render-source ".md"
   [_ source]
